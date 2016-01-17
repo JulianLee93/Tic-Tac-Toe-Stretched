@@ -1,5 +1,5 @@
 //
-//  ViewController.h
+//  RootViewController.h
 //  TicTacToeApp
 //
 //  Created by Julian Lee on 1/15/16.
@@ -8,8 +8,6 @@
 
 #import <UIKit/UIKit.h>
 
-@interface ViewController : UIViewController
-
+@interface RootViewController : UIViewController
 
 @end
-
