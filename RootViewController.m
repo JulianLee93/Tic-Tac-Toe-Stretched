@@ -21,6 +21,7 @@
 @property (weak, nonatomic) IBOutlet UILabel *countdownTimer;
 @property int countdownTimeMemory;
 @property NSTimer *myTimer;
+@property BOOL gameOver;
 
 @end
 
@@ -34,6 +35,7 @@
     self.aDragDrop.layer.borderWidth = 2.0f;
     self.aDragDrop.layer.cornerRadius = 5;
     self.turnPlayerX = true;
+    self.gameOver = false;
 }
 
 - (void)viewDidAppear:(BOOL)animated {
@@ -55,7 +57,7 @@
     
     if ([sender.restorationIdentifier isEqualToString:@"Player-Button-1"]) {
         if (!self.modeOneIsOn) {
-            [self wipeAllMoves:sender];
+            [self wipeAllMoves];
             self.gameTypeLabel.text = [NSString stringWithFormat:@"Play Against AI"];
             self.modeOneIsOn = true;
             self.turnPlayerX = true;
@@ -64,7 +66,7 @@
         }
     } else {
         if (self.modeOneIsOn) {
-            [self wipeAllMoves:sender];
+            [self wipeAllMoves];
             self.gameTypeLabel.text = [NSString stringWithFormat:@"Play with a friend"];
             self.modeOneIsOn = false;
             self.turnPlayerX = true;
@@ -145,9 +147,13 @@
                               forState:UIControlStateNormal];
                 aButton.titleLabel.font = [UIFont systemFontOfSize:32 weight:UIFontWeightSemibold];
                 aButton.titleLabel.center = CGPointMake(aButton.center.x, aButton.center.y);
-                self.turnPlayerX = false;
                 self.movesTaken++;
-                [self turnTimerSet];
+                [self checkForWin:self.gridSize];
+                self.aDragDrop.text = @"O";
+                self.turnPlayerX = false;
+                if (!self.gameOver) {
+                    [self turnTimerSet];
+                }
             }
         }
     }
@@ -167,9 +173,12 @@
                               forState:UIControlStateNormal];
                 aButton.titleLabel.font = [UIFont systemFontOfSize:32 weight:UIFontWeightSemibold];
                 aButton.titleLabel.center = CGPointMake(aButton.center.x, aButton.center.y);
-                self.turnPlayerX = false;
                 self.movesTaken++;
+                [self checkForWin:self.gridSize];
+                self.aDragDrop.text = @"O";
+                self.turnPlayerX = false;
                 [self runTimerNow];
+
             }
             else
             {
@@ -182,8 +191,10 @@
                               forState:UIControlStateNormal];
                 aButton.titleLabel.font = [UIFont systemFontOfSize:32 weight:UIFontWeightSemibold];
                 aButton.titleLabel.center = CGPointMake(aButton.center.x, aButton.center.y);
-                self.turnPlayerX = true;
                 self.movesTaken++;
+                [self checkForWin:self.gridSize];
+                self.aDragDrop.text = @"X";
+                self.turnPlayerX = true;
                 [self runTimerNow];
             }
         }
@@ -285,7 +296,7 @@
 
 
 
--(void) wipeAllMoves: (UIButton *)aButton {
+-(void) wipeAllMoves {
     for (UIButton *aButton in self.view.subviews) {
         if ([aButton.restorationIdentifier isEqualToString:@"Tic-Tac-Toe-Square"]) {
             [aButton setTitle:@" " forState:UIControlStateNormal];
@@ -294,7 +305,7 @@
     }
 }
 
-
+//this puts a short pause before the computer "thinking" activity indicator pops up (without 0.25s pause, it was too immediate)
 -(void) turnTimerSet {
     if (self.movesTaken == (self.gridSize * self.gridSize)) {
         [self killTimer];
@@ -306,13 +317,15 @@
     }
 }
 
+//this sets a random amount from 0.5 to 2.5 seconds of thinking time for the computer that the activity indicator will pop up for
 -(void)compTurnPause {
     [self.activityIndicator startAnimating];
     int lengthOfTimer = arc4random_uniform(10);
-    [NSTimer scheduledTimerWithTimeInterval:(0.5 + (lengthOfTimer/5)) target:self selector:@selector(dumbassAI) userInfo:nil repeats:false];
+    [NSTimer scheduledTimerWithTimeInterval:(0.5 + (lengthOfTimer/7)) target:self selector:@selector(dumbassAI) userInfo:nil repeats:false];
 }
 
 
+//this is a AI that will select a random move
 -(void)dumbassAI {
     int randomizer = arc4random_uniform((self.gridSize * self.gridSize)-1);
     for (UIButton *aButton in self.view.subviews) {
@@ -328,6 +341,8 @@
                     aButton.titleLabel.font = [UIFont systemFontOfSize:32 weight:UIFontWeightSemibold];
                     aButton.titleLabel.center = CGPointMake(aButton.center.x, aButton.center.y);
                     self.movesTaken++;
+                    [self checkForWin:self.gridSize];
+                    self.aDragDrop.text = @"X";
                     self.turnPlayerX = true;
                     [self runTimerNow];
                     [self.activityIndicator stopAnimating];
@@ -342,14 +357,14 @@
     [self dumbassAI];
 }
 
-
+//this triggers the timer for the count down and immediately sets the timer
 -(void) runTimerNow {
     self.countdownTimeMemory = 5;
     self.countdownTimer.text = [NSString stringWithFormat:@"%i", self.countdownTimeMemory];
     self.myTimer = [NSTimer scheduledTimerWithTimeInterval:1 target:self selector:@selector(myCountdownTimer) userInfo:nil repeats:true];
 }
 
-
+//this will update the timer text as it is run in runTimerNow (every second) and will turn itself off once complete
 -(void) myCountdownTimer {
     self.countdownTimeMemory--;
     if (self.countdownTimer.text >= 0) {
@@ -368,12 +383,153 @@
     }
 }
 
-
+//turn off the timer is used multiple times  so I just shortened it to one method
 -(void)killTimer {
     self.countdownTimer.text = nil;
     [self.myTimer invalidate];
     self.myTimer = nil;
 }
+
+
+
+
+-(void)checkForWin: (NSUInteger)size {
+    [self checkForHorizontalWin:size];
+    [self checkForVerticalWin:size];
+    [self checkForLeftDiagonalWin:size];
+    [self checkForRightDiagonalWin:size];
+    if (self.movesTaken == (size*size)) {
+        [self gameResultAlert:@"It's a Tie!"];
+    }
+}
+
+-(void)checkForHorizontalWin :(NSUInteger)size {
+    for (int i = 0; i < size; i++) {
+        int tallyX = 0;
+        int tallyO = 0;
+        for (UIButton *aButton in self.view.subviews) {
+            if ([aButton.restorationIdentifier isEqualToString:@"Tic-Tac-Toe-Square"]) {
+                if ((aButton.tag/size) == i) {
+                    if ([aButton.titleLabel.text isEqualToString:@"X"]) {
+                        tallyX++;
+                    }
+                    if ([aButton.titleLabel.text isEqualToString:@"O"]) {
+                        tallyO++;
+                    }
+                    if (tallyX == size) {
+                        [self gameResultAlert:@"X Wins!"];
+                    }
+                    if (tallyO == size) {
+                        [self gameResultAlert:@"O Wins!"];
+                    }
+                }
+            }
+        }
+    }
+}
+
+-(void)checkForVerticalWin :(NSUInteger)size {
+    for (int i = 0; i < size; i++) {
+        int tallyX = 0;
+        int tallyO = 0;
+        for (UIButton *aButton in self.view.subviews) {
+            if ([aButton.restorationIdentifier isEqualToString:@"Tic-Tac-Toe-Square"]) {
+                if ((aButton.tag % size) == i) {
+                    if ([aButton.titleLabel.text isEqualToString:@"X"]) {
+                        tallyX++;
+                    }
+                    if ([aButton.titleLabel.text isEqualToString:@"O"]) {
+                        tallyO++;
+                    }
+                    if (tallyX == size) {
+                        [self gameResultAlert:@"X Wins!"];
+                    }
+                    if (tallyO == size) {
+                        [self gameResultAlert:@"O Wins!"];
+                    }
+                }
+            }
+        }
+    }
+}
+
+-(void)checkForLeftDiagonalWin :(NSUInteger)size {
+    int tallyX = 0;
+    int tallyO = 0;
+    for (int i = 0; i < (size * size); i = i + (size+1)) {
+        for (UIButton *aButton in self.view.subviews) {
+            if ([aButton.restorationIdentifier isEqualToString:@"Tic-Tac-Toe-Square"]) {
+                if (aButton.tag == i) {
+                    if ([aButton.titleLabel.text isEqualToString:@"X"]) {
+                        tallyX++;
+                    }
+                    if ([aButton.titleLabel.text isEqualToString:@"O"]) {
+                        tallyO++;
+                    }
+                    if (tallyX == size) {
+                        [self gameResultAlert:@"X Wins!"];
+                    }
+                    if (tallyO == size) {
+                        [self gameResultAlert:@"O Wins!"];
+                    }
+                }
+            }
+        }
+    }
+}
+
+-(void)checkForRightDiagonalWin :(NSUInteger)size {
+    int tallyX = 0;
+    int tallyO = 0;
+    for (int i = (size-1); i <= ((size * size) - size); i = i + (size-1)) {
+        for (UIButton *aButton in self.view.subviews) {
+            if ([aButton.restorationIdentifier isEqualToString:@"Tic-Tac-Toe-Square"]) {
+                if (aButton.tag == i) {
+                    if ([aButton.titleLabel.text isEqualToString:@"X"]) {
+                        tallyX++;
+                    }
+                    if ([aButton.titleLabel.text isEqualToString:@"O"]) {
+                        tallyO++;
+                    }
+                    if (tallyX == size) {
+                        [self gameResultAlert:@"X Wins!"];
+                    }
+                    if (tallyO == size) {
+                        [self gameResultAlert:@"O Wins!"];
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+
+
+
+-(void)gameResultAlert :(NSString *)result {
+    self.gameOver = true;
+    UIAlertController *alertController = [UIAlertController alertControllerWithTitle:result
+                                                                             message:@"Rematch?"
+                                                                      preferredStyle:UIAlertControllerStyleAlert];
+    UIAlertAction *playAgain = [UIAlertAction actionWithTitle:@"Play again"
+                                                        style:UIAlertActionStyleDefault
+                                                      handler:^(UIAlertAction * _Nonnull action) {
+                                                          [self wipeAllMoves];
+                                                          self.turnPlayerX = true;
+                                                          self.movesTaken = 0;
+                                                          self.aDragDrop.text = @"X";
+                                                          [self killTimer];
+
+                                                      }];
+    [alertController addAction:playAgain];
+    [self presentViewController:alertController
+                       animated:YES completion:^{
+                           self.gameOver = false;
+                       }];
+}
+
+
 
 
 
